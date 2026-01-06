@@ -3,6 +3,16 @@
     const tableBody = document.querySelector('#stamps-table tbody');
     const refreshLabel = document.getElementById('last-refresh');
     const clearBtn = document.getElementById('btn-clear');
+    const canDelete = document.getElementById('stamps-table')?.dataset.canDelete === 'true';
+
+    const formatDateTime = (value, timeZone) => {
+        if (!value) return '';
+        const date = new Date(value);
+        return date.toLocaleString('de-DE', {
+            timeZone: timeZone || 'Europe/Berlin',
+            hour12: false
+        });
+    };
 
     const queryFromForm = () => {
         const data = new FormData(form);
@@ -17,19 +27,23 @@
         tableBody.innerHTML = '';
         items.forEach(item => {
             const row = document.createElement('tr');
+            row.dataset.id = item.id;
             if (!item.user) row.classList.add('table-warning');
             row.innerHTML = `
-                <td>${item.timestampUtc}</td>
-                <td>${item.timestampLocal}</td>
+                <td>${formatDateTime(item.timestampUtc, 'UTC')}</td>
+                <td>${formatDateTime(item.timestampLocal, 'Europe/Berlin')}</td>
                 <td>${item.uidRaw}</td>
                 <td>${item.user ? item.user.fullName : 'Unbekannt'}</td>
                 <td>${item.readerId}</td>
                 <td>${item.mealType}</td>
-                <td>${!item.user ? `<a class="btn btn-sm btn-outline-primary" href="/Users?search=${encodeURIComponent(item.uidRaw)}">Benutzer verknüpfen</a>` : ''}</td>
+                <td class="text-end">
+                    ${!item.user ? `<a class="btn btn-sm btn-outline-primary" href="/Users?search=${encodeURIComponent(item.uidRaw)}">Benutzer verknüpfen</a>` : ''}
+                    ${canDelete ? `<button type="button" class="btn btn-sm btn-outline-danger btn-delete" data-id="${item.id}">Löschen</button>` : ''}
+                </td>
             `;
             tableBody.appendChild(row);
         });
-        refreshLabel.textContent = new Date().toLocaleTimeString();
+        refreshLabel.textContent = new Date().toLocaleTimeString('de-DE');
     };
 
     const load = async () => {
@@ -54,6 +68,20 @@
     clearBtn?.addEventListener('click', () => {
         form.reset();
         load();
+    });
+
+    tableBody.addEventListener('click', async (e) => {
+        const target = e.target;
+        if (!canDelete) return;
+        if (target instanceof HTMLElement && target.classList.contains('btn-delete')) {
+            const id = target.dataset.id;
+            if (!id) return;
+            if (!confirm('Stempelung wirklich löschen?')) return;
+            const resp = await fetch(`/api/v1/stamps/${id}`, { method: 'DELETE' });
+            if (resp.ok) {
+                load();
+            }
+        }
     });
 
     load();

@@ -9,9 +9,12 @@ using CanteenRFID.Data.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using QuestPDF.Infrastructure;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
 
@@ -121,6 +124,15 @@ api.MapGet("/stamps", async ([FromQuery] DateTime? from, [FromQuery] DateTime? t
     var items = await query.OrderByDescending(s => s.TimestampUtc).Take(500).ToListAsync();
     return Results.Ok(items);
 }).RequireAuthorization().WithTags("Stamps");
+
+api.MapDelete("/stamps/{id:guid}", async (Guid id, ApplicationDbContext db) =>
+{
+    var stamp = await db.Stamps.FindAsync(id);
+    if (stamp == null) return Results.NotFound();
+    db.Stamps.Remove(stamp);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+}).RequireAuthorization("AdminOnly").WithTags("Stamps");
 
 api.MapGet("/users", async ([FromQuery] string? search, [FromQuery] bool? activeOnly, ApplicationDbContext db) =>
 {
