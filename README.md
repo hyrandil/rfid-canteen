@@ -33,6 +33,40 @@ cd src/CanteenRFID.Web
 dotnet run
 ```
 
+### Installation unter Linux (Debian/Ubuntu)
+Die Anwendung läuft auch unter Linux; empfohlen wird ein aktuelles Debian/Ubuntu.
+
+1. .NET 8 Runtime/SDK installieren (Microsoft-Paketquelle einbinden):
+   ```bash
+   sudo apt update
+   sudo apt install -y wget gpg apt-transport-https
+   wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+   sudo dpkg -i packages-microsoft-prod.deb
+   rm packages-microsoft-prod.deb
+   sudo apt update
+   sudo apt install -y dotnet-sdk-8.0
+   ```
+   *(Für Ubuntu ggf. `ubuntu/22.04` in der URL wählen.)*
+
+2. (Optional) Node.js installieren, falls die npm-Skripte genutzt werden sollen:
+   ```bash
+   sudo apt install -y nodejs npm
+   ```
+
+3. Projekt bauen/veröffentlichen:
+   ```bash
+   dotnet publish src/CanteenRFID.Web -c Release -r linux-x64 --self-contained false
+   ```
+   Der Publish-Ordner liegt unter `src/CanteenRFID.Web/bin/Release/net8.0/linux-x64/publish` und enthält `CanteenRFID.Web` (ausführbar), `appsettings.json` sowie `data/canteen.db` (wird bei Bedarf erzeugt).
+
+4. Starten (Beispiel):
+   ```bash
+   cd src/CanteenRFID.Web/bin/Release/net8.0/linux-x64/publish
+   ./CanteenRFID.Web
+   ```
+
+5. Firewall/Portfreigabe beachten (Standard: Port 5000/5001). Für Systemd-Betrieb kann ein Service-File erstellt werden, das das veröffentlichte Binary aufruft.
+
 Für portable Auslieferung auf Windows:
 ```bash
 dotnet publish -c Release -r win-x64 /p:PublishSingleFile=true
