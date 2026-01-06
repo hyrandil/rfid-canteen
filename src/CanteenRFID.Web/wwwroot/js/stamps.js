@@ -4,6 +4,19 @@
     const refreshLabel = document.getElementById('last-refresh');
     const clearBtn = document.getElementById('btn-clear');
     const canDelete = document.getElementById('stamps-table')?.dataset.canDelete === 'true';
+    const alertBox = document.getElementById('stamps-alert');
+
+    const showAlert = (message, type = 'danger') => {
+        if (!alertBox) return;
+        alertBox.className = `alert alert-${type}`;
+        alertBox.textContent = message;
+    };
+
+    const clearAlert = () => {
+        if (!alertBox) return;
+        alertBox.className = 'd-none';
+        alertBox.textContent = '';
+    };
 
     const formatDateTime = (value, timeZone) => {
         if (!value) return '';
@@ -63,6 +76,7 @@
     };
 
     const load = async () => {
+        clearAlert();
         const qs = queryFromForm();
         const response = await fetch(`/api/v1/stamps?${qs}`, { headers: { 'Accept': 'application/json' } });
         if (!response.ok) return;
@@ -96,6 +110,9 @@
             const resp = await fetch(`/api/v1/stamps/${id}`, { method: 'DELETE' });
             if (resp.ok) {
                 load();
+            } else {
+                const text = await resp.text();
+                showAlert(text || 'Löschen fehlgeschlagen. Prüfe Berechtigungen.');
             }
         }
     });

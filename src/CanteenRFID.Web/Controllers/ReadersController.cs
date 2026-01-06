@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Linq;
 using CanteenRFID.Core.Models;
 using CanteenRFID.Data.Contexts;
+using CanteenRFID.Web.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,8 +24,19 @@ public class ReadersController : Controller
 
     public async Task<IActionResult> Index()
     {
+        var lastStamps = await _db.Stamps
+            .GroupBy(s => s.ReaderId)
+            .Select(g => new { ReaderId = g.Key, LastSeenUtc = g.Max(s => s.TimestampUtc) })
+            .ToListAsync();
+
         var readers = await _db.Readers.OrderBy(r => r.ReaderId).ToListAsync();
-        return View(readers);
+        var models = readers.Select(r => new ReaderStatusViewModel
+        {
+            Reader = r,
+            LastSeenUtc = lastStamps.FirstOrDefault(ls => ls.ReaderId == r.ReaderId)?.LastSeenUtc
+        }).ToList();
+
+        return View(models);
     }
 
     public IActionResult Create()
