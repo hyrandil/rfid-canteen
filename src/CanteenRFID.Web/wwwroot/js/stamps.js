@@ -14,6 +14,22 @@
         });
     };
 
+    const mealLabel = (value) => {
+        const map = {
+            0: 'Unbekannt',
+            1: 'Frühstück',
+            2: 'Mittagessen',
+            3: 'Abendessen',
+            4: 'Snack',
+            'Unknown': 'Unbekannt',
+            'Breakfast': 'Frühstück',
+            'Lunch': 'Mittagessen',
+            'Dinner': 'Abendessen',
+            'Snack': 'Snack'
+        };
+        return map[value] ?? value;
+    };
+
     const queryFromForm = () => {
         const data = new FormData(form);
         const params = new URLSearchParams();
@@ -35,7 +51,7 @@
                 <td>${item.uidRaw}</td>
                 <td>${item.user ? item.user.fullName : 'Unbekannt'}</td>
                 <td>${item.readerId}</td>
-                <td>${item.mealType}</td>
+                <td>${mealLabel(item.mealType)}</td>
                 <td class="text-end">
                     ${!item.user ? `<a class="btn btn-sm btn-outline-primary" href="/Users?search=${encodeURIComponent(item.uidRaw)}">Benutzer verknüpfen</a>` : ''}
                     ${canDelete ? `<button type="button" class="btn btn-sm btn-outline-danger btn-delete" data-id="${item.id}">Löschen</button>` : ''}

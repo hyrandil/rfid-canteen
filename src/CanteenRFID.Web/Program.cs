@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using CanteenRFID.Core.Enums;
 using CanteenRFID.Core.Models;
 using CanteenRFID.Core.Services;
@@ -47,7 +48,10 @@ Directory.CreateDirectory(dataDir);
 var dbPath = Path.Combine(dataDir, "canteen.db");
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
 
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -78,6 +82,17 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.Use(async (ctx, next) =>
+{
+    await next();
+    if (ctx.User?.Identity?.IsAuthenticated == true)
+    {
+        ctx.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+        ctx.Response.Headers["Pragma"] = "no-cache";
+        ctx.Response.Headers["Expires"] = "0";
+    }
+});
 
 app.MapControllerRoute(
     name: "default",
@@ -270,11 +285,34 @@ api.MapPost("/readers/{id:guid}/regenerate", async (Guid id, IApiKeyHasher hashe
     return Results.Ok(new { reader.Id, ApiKey = apiKey });
 }).RequireAuthorization("AdminOnly").WithTags("Readers");
 
+api.MapPut("/readers/{id:guid}", async (Guid id, [FromBody] ReaderUpdateRequest update, ApplicationDbContext db) =>
+{
+    var reader = await db.Readers.FindAsync(id);
+    if (reader == null) return Results.NotFound();
+    reader.ReaderId = update.ReaderId;
+    reader.Name = update.Name;
+    reader.Location = update.Location;
+    reader.IsActive = update.IsActive;
+    await db.SaveChangesAsync();
+    return Results.Ok(reader);
+}).RequireAuthorization("AdminOnly").WithTags("Readers");
+
+api.MapDelete("/readers/{id:guid}", async (Guid id, ApplicationDbContext db) =>
+{
+    var reader = await db.Readers.FindAsync(id);
+    if (reader == null) return Results.NotFound();
+    db.Readers.Remove(reader);
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+}).RequireAuthorization("AdminOnly").WithTags("Readers");
+
 app.Run();
 
 public record StampRequest(string Uid, string? ReaderId, DateTime? TimestampUtc, Dictionary<string, string>? Meta);
 
 public record RecalculateRequest(DateTime From, DateTime To);
+
+public record ReaderUpdateRequest(string ReaderId, string? Name, string? Location, bool IsActive);
 
 public record AdminOptions
 {
