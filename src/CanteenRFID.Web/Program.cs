@@ -193,6 +193,46 @@ api.MapPost("/readers/ping", async (HttpContext context, ApiKeyValidator validat
     return Results.Ok(new { status = "ok", serverTimeUtc = DateTime.UtcNow });
 }).WithTags("Readers");
 
+api.MapGet("/readers/{readerId}/latest-stamp", async (string readerId, [FromQuery] DateTime? since, HttpContext context, ApiKeyValidator validator, ApplicationDbContext db) =>
+{
+    if (!context.Request.Headers.TryGetValue("X-API-KEY", out var apiKey) || string.IsNullOrWhiteSpace(apiKey))
+    {
+        return Results.Unauthorized();
+    }
+
+    var reader = await validator.ValidateAsync(apiKey!);
+    if (reader is null)
+    {
+        return Results.Unauthorized();
+    }
+
+    if (!string.Equals(reader.ReaderId, readerId, StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.BadRequest("ReaderId stimmt nicht mit API-Key überein.");
+    }
+
+    var query = db.Stamps.Include(s => s.User).Where(s => s.ReaderId == reader.ReaderId);
+    if (since.HasValue)
+    {
+        query = query.Where(s => s.TimestampUtc > since.Value);
+    }
+
+    var stamp = await query.OrderByDescending(s => s.TimestampUtc).FirstOrDefaultAsync();
+    if (stamp == null)
+    {
+        return Results.NoContent();
+    }
+
+    var response = new ReaderDisplayStampResponse(
+        stamp.Id,
+        stamp.TimestampUtc,
+        stamp.MealType.ToString(),
+        GetMealLabel(stamp.MealType),
+        stamp.User != null ? $"{stamp.User.LastName}, {stamp.User.FirstName}" : null);
+
+    return Results.Ok(response);
+}).WithTags("Readers");
+
 api.MapGet("/users", async ([FromQuery] string? search, [FromQuery] bool? activeOnly, ApplicationDbContext db) =>
 {
     var query = db.Users.AsQueryable();
@@ -375,6 +415,17 @@ public record RecalculateRequest(DateTime From, DateTime To);
 public record ReaderUpdateRequest(string ReaderId, string? Name, string? Location, bool IsActive);
 
 public record ReaderPingRequest(string ReaderId);
+
+public record ReaderDisplayStampResponse(Guid Id, DateTime TimestampUtc, string MealType, string MealLabel, string? UserName);
+
+static string GetMealLabel(MealType mealType) => mealType switch
+{
+    MealType.Breakfast => "Frühstück",
+    MealType.Lunch => "Mittagessen",
+    MealType.Dinner => "Abendessen",
+    MealType.Snack => "Snack",
+    _ => "Unbekannt"
+};
 
 public record AdminOptions
 {
