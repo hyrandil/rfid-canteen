@@ -233,17 +233,6 @@ api.MapGet("/readers/{readerId}/latest-stamp", async (string readerId, [FromQuer
     return Results.Ok(response);
 }).WithTags("Readers");
 
-api.MapGet("/readers/active", async (ApplicationDbContext db) =>
-{
-    var readers = await db.Readers
-        .Where(r => r.IsActive)
-        .OrderBy(r => r.Name ?? r.ReaderId)
-        .Select(r => new ReaderDisplayOption(r.ReaderId, r.Name ?? r.ReaderId, r.Location))
-        .ToListAsync();
-
-    return Results.Ok(readers);
-}).WithTags("Readers");
-
 api.MapGet("/readers/{readerId}/latest-stamp-display", async (string readerId, [FromQuery] DateTime? since, ApplicationDbContext db) =>
 {
     var query = db.Stamps.Include(s => s.User).Where(s => s.ReaderId == readerId);
@@ -452,8 +441,6 @@ public record ReaderUpdateRequest(string ReaderId, string? Name, string? Locatio
 public record ReaderPingRequest(string ReaderId);
 
 public record ReaderDisplayStampResponse(Guid Id, DateTime TimestampUtc, string MealType, string MealLabel, string? UserName);
-
-public record ReaderDisplayOption(string ReaderId, string DisplayName, string? Location);
 
 public static class MealLabelHelper
 {
