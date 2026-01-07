@@ -227,7 +227,7 @@ api.MapGet("/readers/{readerId}/latest-stamp", async (string readerId, [FromQuer
         stamp.Id,
         stamp.TimestampUtc,
         stamp.MealType.ToString(),
-        GetMealLabel(stamp.MealType),
+        MealLabelHelper.GetMealLabel(stamp.MealType),
         stamp.User != null ? $"{stamp.User.LastName}, {stamp.User.FirstName}" : null);
 
     return Results.Ok(response);
@@ -418,14 +418,17 @@ public record ReaderPingRequest(string ReaderId);
 
 public record ReaderDisplayStampResponse(Guid Id, DateTime TimestampUtc, string MealType, string MealLabel, string? UserName);
 
-static string GetMealLabel(MealType mealType) => mealType switch
+public static class MealLabelHelper
 {
-    MealType.Breakfast => "Frühstück",
-    MealType.Lunch => "Mittagessen",
-    MealType.Dinner => "Abendessen",
-    MealType.Snack => "Snack",
-    _ => "Unbekannt"
-};
+    public static string GetMealLabel(MealType mealType) => mealType switch
+    {
+        MealType.Breakfast => "Frühstück",
+        MealType.Lunch => "Mittagessen",
+        MealType.Dinner => "Abendessen",
+        MealType.Snack => "Snack",
+        _ => "Unbekannt"
+    };
+}
 
 public record AdminOptions
 {
