@@ -1,30 +1,27 @@
 const CONFIG_KEYS = {
-    readerId: 'canteenReaderId',
-    apiKey: 'canteenApiKey'
+    readerId: 'canteenReaderId'
 };
 
-const configPanel = document.getElementById('configPanel');
+const setupPanel = document.getElementById('setupPanel');
 const statusPanel = document.getElementById('statusPanel');
-const statusMessage = document.getElementById('statusMessage');
 const stampCard = document.getElementById('stampCard');
 const mealLabel = document.getElementById('mealLabel');
 const userName = document.getElementById('userName');
-const configForm = document.getElementById('configForm');
-const readerIdInput = document.getElementById('readerIdInput');
-const apiKeyInput = document.getElementById('apiKeyInput');
+const setupForm = document.getElementById('setupForm');
+const readerSelect = document.getElementById('readerSelect');
+const hintText = document.querySelector('.status-hint');
 
 let lastStampTimestamp = null;
 let hideTimer = null;
+let pollInterval = null;
 
 const loadConfig = () => {
     const readerId = localStorage.getItem(CONFIG_KEYS.readerId);
-    const apiKey = localStorage.getItem(CONFIG_KEYS.apiKey);
-    return { readerId, apiKey };
+    return { readerId };
 };
 
-const saveConfig = (readerId, apiKey) => {
+const saveConfig = (readerId) => {
     localStorage.setItem(CONFIG_KEYS.readerId, readerId);
-    localStorage.setItem(CONFIG_KEYS.apiKey, apiKey);
 };
 
 const showStamp = (stamp) => {
@@ -35,21 +32,23 @@ const showStamp = (stamp) => {
     mealLabel.textContent = stamp.mealLabel || stamp.mealType || 'Unbekannt';
     userName.textContent = stamp.userName || '';
     stampCard.classList.remove('hidden');
-    statusMessage.textContent = 'Stempelung erfasst';
+    stampCard.classList.add('visible');
+    if (hintText) {
+        hintText.textContent = 'Buchung erfasst';
+    }
 
     hideTimer = setTimeout(() => {
+        stampCard.classList.remove('visible');
         stampCard.classList.add('hidden');
-        statusMessage.textContent = 'Warte auf Stempelung…';
+        if (hintText) {
+            hintText.textContent = 'Bitte RFID vorhalten';
+        }
     }, 5000);
 };
 
-const fetchLatestStamp = async (readerId, apiKey) => {
+const fetchLatestStamp = async (readerId) => {
     const params = lastStampTimestamp ? `?since=${encodeURIComponent(lastStampTimestamp)}` : '';
-    const response = await fetch(`/api/v1/readers/${encodeURIComponent(readerId)}/latest-stamp${params}`, {
-        headers: {
-            'X-API-KEY': apiKey
-        }
-    });
+    const response = await fetch(`/api/v1/readers/${encodeURIComponent(readerId)}/latest-stamp-display${params}`);
 
     if (response.status === 204) {
         return null;
@@ -62,14 +61,16 @@ const fetchLatestStamp = async (readerId, apiKey) => {
     return response.json();
 };
 
-const startPolling = (readerId, apiKey) => {
-    configPanel.classList.add('hidden');
+const startPolling = (readerId) => {
+    setupPanel.classList.add('hidden');
     statusPanel.classList.remove('hidden');
-    statusMessage.textContent = 'Warte auf Stempelung…';
+    if (hintText) {
+        hintText.textContent = 'Bitte RFID vorhalten';
+    }
 
     const poll = async () => {
         try {
-            const stamp = await fetchLatestStamp(readerId, apiKey);
+            const stamp = await fetchLatestStamp(readerId);
             if (stamp) {
                 lastStampTimestamp = stamp.timestampUtc || stamp.TimestampUtc;
                 showStamp({
@@ -79,33 +80,68 @@ const startPolling = (readerId, apiKey) => {
                 });
             }
         } catch (error) {
-            statusMessage.textContent = 'Verbindung zum Server fehlgeschlagen.';
+            if (hintText) {
+                hintText.textContent = 'Verbindung zum Server fehlgeschlagen';
+            }
         }
     };
 
     poll();
-    setInterval(poll, 1500);
+    if (pollInterval) {
+        clearInterval(pollInterval);
+    }
+    pollInterval = setInterval(poll, 1200);
 };
 
-configForm.addEventListener('submit', (event) => {
+const loadReaders = async () => {
+    const response = await fetch('/api/v1/readers/active');
+    if (!response.ok) {
+        return [];
+    }
+    return response.json();
+};
+
+const renderReaderOptions = (readers, selectedId) => {
+    readerSelect.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Bitte wählen...';
+    placeholder.disabled = true;
+    placeholder.selected = !selectedId;
+    readerSelect.appendChild(placeholder);
+
+    readers.forEach((reader) => {
+        const option = document.createElement('option');
+        option.value = reader.readerId || reader.ReaderId;
+        const name = reader.displayName || reader.DisplayName || reader.readerId || reader.ReaderId;
+        const location = reader.location || reader.Location;
+        option.textContent = location ? `${name} (${location})` : name;
+        if (option.value === selectedId) {
+            option.selected = true;
+        }
+        readerSelect.appendChild(option);
+    });
+};
+
+setupForm.addEventListener('submit', (event) => {
     event.preventDefault();
-    const readerId = readerIdInput.value.trim();
-    const apiKey = apiKeyInput.value.trim();
-    if (!readerId || !apiKey) {
+    const readerId = readerSelect.value;
+    if (!readerId) {
         return;
     }
 
-    saveConfig(readerId, apiKey);
-    startPolling(readerId, apiKey);
+    saveConfig(readerId);
+    startPolling(readerId);
 });
 
-const bootstrap = () => {
-    const { readerId, apiKey } = loadConfig();
-    if (readerId && apiKey) {
-        startPolling(readerId, apiKey);
-    } else {
-        configPanel.classList.remove('hidden');
-        statusPanel.classList.add('hidden');
+const bootstrap = async () => {
+    const { readerId } = loadConfig();
+    const readers = await loadReaders();
+    renderReaderOptions(readers, readerId);
+    setupPanel.classList.remove('hidden');
+    statusPanel.classList.add('hidden');
+    if (readerId) {
+        startPolling(readerId);
     }
 };
 

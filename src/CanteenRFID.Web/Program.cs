@@ -233,6 +233,41 @@ api.MapGet("/readers/{readerId}/latest-stamp", async (string readerId, [FromQuer
     return Results.Ok(response);
 }).WithTags("Readers");
 
+api.MapGet("/readers/active", async (ApplicationDbContext db) =>
+{
+    var readers = await db.Readers
+        .Where(r => r.IsActive)
+        .OrderBy(r => r.Name ?? r.ReaderId)
+        .Select(r => new ReaderDisplayOption(r.ReaderId, r.Name ?? r.ReaderId, r.Location))
+        .ToListAsync();
+
+    return Results.Ok(readers);
+}).WithTags("Readers");
+
+api.MapGet("/readers/{readerId}/latest-stamp-display", async (string readerId, [FromQuery] DateTime? since, ApplicationDbContext db) =>
+{
+    var query = db.Stamps.Include(s => s.User).Where(s => s.ReaderId == readerId);
+    if (since.HasValue)
+    {
+        query = query.Where(s => s.TimestampUtc > since.Value);
+    }
+
+    var stamp = await query.OrderByDescending(s => s.TimestampUtc).FirstOrDefaultAsync();
+    if (stamp == null)
+    {
+        return Results.NoContent();
+    }
+
+    var response = new ReaderDisplayStampResponse(
+        stamp.Id,
+        stamp.TimestampUtc,
+        stamp.MealType.ToString(),
+        MealLabelHelper.GetMealLabel(stamp.MealType),
+        stamp.User != null ? $"{stamp.User.LastName}, {stamp.User.FirstName}" : null);
+
+    return Results.Ok(response);
+}).WithTags("Readers");
+
 api.MapGet("/users", async ([FromQuery] string? search, [FromQuery] bool? activeOnly, ApplicationDbContext db) =>
 {
     var query = db.Users.AsQueryable();
@@ -417,6 +452,8 @@ public record ReaderUpdateRequest(string ReaderId, string? Name, string? Locatio
 public record ReaderPingRequest(string ReaderId);
 
 public record ReaderDisplayStampResponse(Guid Id, DateTime TimestampUtc, string MealType, string MealLabel, string? UserName);
+
+public record ReaderDisplayOption(string ReaderId, string DisplayName, string? Location);
 
 public static class MealLabelHelper
 {

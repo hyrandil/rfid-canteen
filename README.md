@@ -117,10 +117,10 @@ Beim ersten Start wird der Standard-Admin (User `admin`, Passwort `ChangeMe123!`
 3. `ServerUrl` und `ReaderId` setzen, dann Client starten. Der Client sendet Stempelungen sowie regelmäßige "Ping"-Signale an `/api/v1/readers/ping`, damit der Server den Online-Status erkennt (Intervall via `PingIntervalSeconds`).
 
 ## Reader-Display (Web)
-Für den Mini-PC kann zusätzlich eine einfache Webanzeige genutzt werden, die nach jeder Stempelung eine Bestätigung zeigt (große Meal-Anzeige + grüner Haken, optional Mitarbeitername).
+Für den Mini-PC kann zusätzlich eine Vollbild-Webanzeige genutzt werden, die nach jeder Stempelung eine Bestätigung zeigt (großer Meal-Name + grüner Haken, optional Mitarbeitername).
 
 1. Im Browser `http://<server>:5000/ReaderDisplay` öffnen.
-2. Reader-ID und API-Key eingeben (die Werte werden lokal im Browser gespeichert).
+2. Im Dropdown den Reader auswählen und **Starten** klicken (Auswahl wird lokal gespeichert).
 3. Nach einer Stempelung erscheint der Meal-Name groß mit grünem Haken und optional `Nachname, Vorname`. Die Anzeige verschwindet nach 5 Sekunden oder bei der nächsten Stempelung.
 
 ## Beispiel-Meal-Rules
