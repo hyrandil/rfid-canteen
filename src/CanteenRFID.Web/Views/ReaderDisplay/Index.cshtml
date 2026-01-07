@@ -197,6 +197,7 @@
 
     <script>
         const storageKey = 'canteenReaderId';
+        const initialReaderId = '@(Model.SelectedReaderId ?? string.Empty)';
         const setupPanel = document.getElementById('setupPanel');
         const statusPanel = document.getElementById('statusPanel');
         const stampCard = document.getElementById('stampCard');
@@ -277,11 +278,18 @@
             startPolling(readerId);
         });
 
-        const storedReaderId = localStorage.getItem(storageKey);
-        if (storedReaderId) {
-            readerSelect.value = storedReaderId;
+        if (initialReaderId) {
+            readerSelect.value = initialReaderId;
             if (readerSelect.value) {
-                startPolling(storedReaderId);
+                startPolling(initialReaderId);
+            }
+        } else {
+            const storedReaderId = localStorage.getItem(storageKey);
+            if (storedReaderId) {
+                readerSelect.value = storedReaderId;
+                if (readerSelect.value) {
+                    startPolling(storedReaderId);
+                }
             }
         }
     </script>

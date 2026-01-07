@@ -17,35 +17,36 @@ public class ReaderDisplayController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> Index()
+    [HttpGet("/ReaderDisplay={readerId}")]
+    public async Task<IActionResult> Index(string? readerId, string? pw)
     {
-        var readers = await _db.Readers
-            .Where(r => r.IsActive)
-            .OrderBy(r => r.Name ?? r.ReaderId)
-            .Select(r => new ReaderDisplayOption
-            {
-                ReaderId = r.ReaderId,
-                DisplayName = r.Name ?? r.ReaderId,
-                Location = r.Location,
-                IsActive = r.IsActive
-            })
-            .ToListAsync();
-
-        if (readers.Count == 0)
+        if (string.IsNullOrWhiteSpace(readerId) || string.IsNullOrWhiteSpace(pw))
         {
-            readers = await _db.Readers
-                .OrderBy(r => r.Name ?? r.ReaderId)
-                .Select(r => new ReaderDisplayOption
-                {
-                    ReaderId = r.ReaderId,
-                    DisplayName = r.Name ?? r.ReaderId,
-                    Location = r.Location,
-                    IsActive = r.IsActive
-                })
-                .ToListAsync();
+            return Unauthorized("ReaderDisplay benötigt readerId und pw in der URL.");
         }
 
-        var model = new ReaderDisplayViewModel { Readers = readers };
+        var reader = await _db.Readers.FirstOrDefaultAsync(r => r.ReaderId == readerId);
+        if (reader == null || string.IsNullOrWhiteSpace(reader.DisplayPassword) || reader.DisplayPassword != pw)
+        {
+            return Unauthorized("Ungültiges ReaderDisplay-Passwort.");
+        }
+
+        var readers = new List<ReaderDisplayOption>
+        {
+            new()
+            {
+                ReaderId = reader.ReaderId,
+                DisplayName = reader.Name ?? reader.ReaderId,
+                Location = reader.Location,
+                IsActive = reader.IsActive
+            }
+        };
+
+        var model = new ReaderDisplayViewModel
+        {
+            Readers = readers,
+            SelectedReaderId = reader.ReaderId
+        };
         return View(model);
     }
 }

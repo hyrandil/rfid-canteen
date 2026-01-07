@@ -90,6 +90,19 @@ public class ReadersController : Controller
     [Authorize(Policy = "AdminOnly")]
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateDisplayPassword(Guid id, string? displayPassword)
+    {
+        var reader = await _db.Readers.FindAsync(id);
+        if (reader == null) return NotFound();
+        reader.DisplayPassword = string.IsNullOrWhiteSpace(displayPassword) ? null : displayPassword.Trim();
+        await _db.SaveChangesAsync();
+        TempData["Info"] = "Reader-Display Passwort aktualisiert.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [Authorize(Policy = "AdminOnly")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(Guid id)
     {
         var reader = await _db.Readers.FindAsync(id);
