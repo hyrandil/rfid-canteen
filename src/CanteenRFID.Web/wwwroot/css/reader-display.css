@@ -5,8 +5,11 @@
 body {
     margin: 0;
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-    background: #0b1020;
+    background: radial-gradient(circle at top, rgba(59, 130, 246, 0.18), transparent 55%),
+        radial-gradient(circle at bottom, rgba(34, 197, 94, 0.18), transparent 60%),
+        #0b1020;
     color: #f8fafc;
+    min-height: 100vh;
 }
 
 .reader-display {
@@ -14,6 +17,32 @@ body {
     display: flex;
     align-items: stretch;
     justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.reader-display::before,
+.reader-display::after {
+    content: "";
+    position: absolute;
+    width: 380px;
+    height: 380px;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.45;
+    z-index: 0;
+}
+
+.reader-display::before {
+    top: -120px;
+    left: -120px;
+    background: rgba(59, 130, 246, 0.5);
+}
+
+.reader-display::after {
+    bottom: -160px;
+    right: -160px;
+    background: rgba(34, 197, 94, 0.5);
 }
 
 .setup-panel {
@@ -22,6 +51,8 @@ body {
     justify-content: center;
     width: 100%;
     padding: 2rem;
+    position: relative;
+    z-index: 1;
 }
 
 .setup-card {
@@ -78,6 +109,8 @@ body {
     background: radial-gradient(circle at top, rgba(34, 197, 94, 0.15), transparent 45%);
     padding: 3rem 2rem;
     text-align: center;
+    position: relative;
+    z-index: 1;
 }
 
 .status-hint {
