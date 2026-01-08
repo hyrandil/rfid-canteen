@@ -68,13 +68,20 @@ var flushTask = Task.Run(async () =>
     }
 }, flushCts.Token);
 
-Console.WriteLine("Bereit. UID einscannen und mit ENTER bestätigen (Keyboard-Wedge-Modus).");
-IUidSource source = new KeyboardWedgeSource(settings.Terminator);
+    try
+    {
+        await queue.FlushAsync(async stamp => await sender.TrySendAsync(stamp));
+    }
+    finally
+    {
+        flushLock.Release();
+    }
+}
 
 Console.WriteLine("Bereit. UID einscannen und mit ENTER bestätigen (Keyboard-Wedge-Modus).");
-IUidSource source = new KeyboardWedgeSource(settings.Terminator);
+IUidSource uidSource = new KeyboardWedgeSource(settings.Terminator);
 
-await foreach (var uid in source.ReadAsync())
+await foreach (var uid in uidSource.ReadAsync())
 {
     if (string.IsNullOrWhiteSpace(uid)) continue;
     var stamp = new StampRequest
