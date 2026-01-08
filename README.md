@@ -119,9 +119,10 @@ Beim ersten Start wird der Standard-Admin (User `admin`, Passwort `ChangeMe123!`
 ## Reader-Display (Web)
 Für den Mini-PC kann zusätzlich eine Vollbild-Webanzeige genutzt werden, die nach jeder Stempelung eine Bestätigung zeigt (großer Meal-Name + grüner Haken, optional Mitarbeitername).
 
-1. Im Browser `http://<server>:5000/ReaderDisplay` öffnen.
-2. Im Dropdown den Reader auswählen und **Starten** klicken (Auswahl wird lokal gespeichert).
-3. Nach einer Stempelung erscheint der Meal-Name groß mit grünem Haken und optional `Nachname, Vorname`. Die Anzeige verschwindet nach 5 Sekunden oder bei der nächsten Stempelung.
+1. Im Reader-Adminbereich ein **Reader-Display Passwort** setzen (unter **Reader** in der Tabelle oder beim Anlegen).
+2. Im Browser die URL mit Reader-ID und Passwort aufrufen:  
+   `http://<server>:5000/ReaderDisplay=<READER_ID>&pw=<PASSWORT>`
+3. Die Seite startet automatisch für den Reader. Nach jeder Stempelung erscheint der Meal-Name groß mit grünem Haken und optional `Nachname, Vorname`. Die Anzeige verschwindet nach 5 Sekunden oder bei der nächsten Stempelung.
 
 ## Beispiel-Meal-Rules
 - Frühstück: 07:00–10:00 (alle Tage)
