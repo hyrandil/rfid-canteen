@@ -67,6 +67,18 @@ public class ReadersController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(Reader reader)
     {
+        if (!string.IsNullOrWhiteSpace(reader.DisplayPassword))
+        {
+            try
+            {
+                await _db.Database.ExecuteSqlInterpolatedAsync(
+                    $"ALTER TABLE Readers ADD COLUMN DisplayPassword TEXT");
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+            {
+                // Column already exists.
+            }
+        }
         reader.ApiKeyHash = _hasher.Hash(Guid.NewGuid().ToString("N"));
         _db.Readers.Add(reader);
         await _db.SaveChangesAsync();
