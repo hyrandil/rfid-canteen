@@ -55,7 +55,8 @@ var pingTask = Task.Run(async () =>
     }
 }, pingCts.Token);
 
-await FlushQueueAsync();
+Console.WriteLine("Bereit. UID einscannen und mit ENTER bestätigen (Keyboard-Wedge-Modus).");
+IUidSource source = new KeyboardWedgeSource(settings.Terminator);
 
 Console.WriteLine("Bereit. UID einscannen und mit ENTER bestätigen (Keyboard-Wedge-Modus).");
 IUidSource source = new KeyboardWedgeSource(settings.Terminator);
