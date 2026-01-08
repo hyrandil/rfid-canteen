@@ -257,6 +257,29 @@ api.MapGet("/readers/{readerId}/latest-stamp-display", async (string readerId, [
     return Results.Ok(response);
 }).WithTags("Readers");
 
+api.MapGet("/readers/{readerId}/status-display", async (string readerId, ApplicationDbContext db) =>
+{
+    var reader = await db.Readers.FirstOrDefaultAsync(r => r.ReaderId == readerId);
+    var lastStamp = await db.Stamps
+        .Where(s => s.ReaderId == readerId)
+        .OrderByDescending(s => s.TimestampUtc)
+        .Select(s => (DateTime?)s.TimestampUtc)
+        .FirstOrDefaultAsync();
+
+    DateTime? lastSeen = null;
+    if (lastStamp.HasValue && reader?.LastPingUtc.HasValue == true)
+    {
+        lastSeen = lastStamp > reader.LastPingUtc ? lastStamp : reader.LastPingUtc;
+    }
+    else
+    {
+        lastSeen = lastStamp ?? reader?.LastPingUtc;
+    }
+
+    var isOnline = lastSeen.HasValue && lastSeen.Value >= DateTime.UtcNow.AddMinutes(-2);
+    return Results.Ok(new { readerId, isOnline, lastSeenUtc = lastSeen });
+}).WithTags("Readers");
+
 api.MapGet("/users", async ([FromQuery] string? search, [FromQuery] bool? activeOnly, ApplicationDbContext db) =>
 {
     var query = db.Users.AsQueryable();

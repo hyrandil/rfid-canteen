@@ -20,6 +20,17 @@ public class ReaderDisplayController : Controller
     [HttpGet("/ReaderDisplay={readerId}")]
     public async Task<IActionResult> Index(string? readerId, string? pw)
     {
+        if (!string.IsNullOrWhiteSpace(readerId) && string.IsNullOrWhiteSpace(pw))
+        {
+            const string token = "&pw=";
+            var index = readerId.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+            if (index >= 0)
+            {
+                pw = readerId[(index + token.Length)..];
+                readerId = readerId[..index];
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(readerId) || string.IsNullOrWhiteSpace(pw))
         {
             return Unauthorized("ReaderDisplay benötigt readerId und pw in der URL.");
