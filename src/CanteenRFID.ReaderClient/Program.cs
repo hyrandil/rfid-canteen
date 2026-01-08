@@ -265,3 +265,5 @@ public record StampRequest
 
 public record ReaderPingRequest(string ReaderId);
 }
+
+public record ReaderPingRequest(string ReaderId);
