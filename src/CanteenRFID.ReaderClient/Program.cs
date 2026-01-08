@@ -21,6 +21,24 @@ httpClient.DefaultRequestHeaders.Add("X-API-KEY", settings.ApiKey);
 
 var queue = new StampQueue(queueFile);
 var sender = new StampSender(httpClient);
+var flushLock = new SemaphoreSlim(1, 1);
+
+async Task FlushQueueAsync()
+{
+    if (!await flushLock.WaitAsync(0))
+    {
+        return;
+    }
+
+    try
+    {
+        await queue.FlushAsync(async stamp => await sender.TrySendAsync(stamp));
+    }
+    finally
+    {
+        flushLock.Release();
+    }
+}
 
 var pingInterval = Math.Max(5, settings.PingIntervalSeconds);
 var pingCts = new CancellationTokenSource();
@@ -29,11 +47,16 @@ var pingTask = Task.Run(async () =>
     var timer = new PeriodicTimer(TimeSpan.FromSeconds(pingInterval));
     while (await timer.WaitForNextTickAsync(pingCts.Token))
     {
-        await sender.TryPingAsync(settings.ReaderId);
+        var pinged = await sender.TryPingAsync(settings.ReaderId);
+        if (pinged)
+        {
+            await FlushQueueAsync();
+        }
     }
 }, pingCts.Token);
 
-await queue.FlushAsync(async stamp => await sender.TrySendAsync(stamp));
+Console.WriteLine("Bereit. UID einscannen und mit ENTER bestätigen (Keyboard-Wedge-Modus).");
+IUidSource source = new KeyboardWedgeSource(settings.Terminator);
 
 Console.WriteLine("Bereit. UID einscannen und mit ENTER bestätigen (Keyboard-Wedge-Modus).");
 IUidSource source = new KeyboardWedgeSource(settings.Terminator);
@@ -54,6 +77,10 @@ await foreach (var uid in source.ReadAsync())
     {
         await queue.EnqueueAsync(stamp);
         Console.WriteLine("Server offline, in Queue abgelegt.");
+    }
+    else
+    {
+        await FlushQueueAsync();
     }
 }
 
