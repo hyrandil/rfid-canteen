@@ -116,6 +116,24 @@ Beim ersten Start wird der Standard-Admin (User `admin`, Passwort `ChangeMe123!`
 2. API-Key notieren und in `readerclientsettings.json` eintragen.
 3. `ServerUrl` und `ReaderId` setzen, dann Client starten. Der Client sendet Stempelungen sowie regelmäßige "Ping"-Signale an `/api/v1/readers/ping`, damit der Server den Online-Status erkennt (Intervall via `PingIntervalSeconds`).
 
+### Reader-Client als Windows Service installieren
+1. Reader-Client veröffentlichen (z. B. `dotnet publish src/CanteenRFID.ReaderClient -c Release -r win-x64`).
+2. In den Publish-Ordner wechseln und den Service registrieren:
+   ```powershell
+   sc.exe create CanteenRFID.ReaderClient binPath= "\"C:\Pfad\zur\CanteenRFID.ReaderClient.exe\"" start= delayed-auto
+   sc.exe description CanteenRFID.ReaderClient "CanteenRFID Reader Client (RFID/Barcode Eingaben)"
+   ```
+3. Service starten:
+   ```powershell
+   sc.exe start CanteenRFID.ReaderClient
+   ```
+4. Optional beenden/entfernen:
+   ```powershell
+   sc.exe stop CanteenRFID.ReaderClient
+   sc.exe delete CanteenRFID.ReaderClient
+   ```
+Der Service ist danach unter `services.msc` sichtbar. Konfiguration liegt weiterhin in `readerclientsettings.json` im gleichen Ordner wie die EXE.
+
 ## Reader-Display (Web)
 Für den Mini-PC kann zusätzlich eine Vollbild-Webanzeige genutzt werden, die nach jeder Stempelung eine Bestätigung zeigt (großer Meal-Name + grüner Haken, optional Mitarbeitername).
 
