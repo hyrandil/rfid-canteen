@@ -5,12 +5,30 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
-namespace CanteenRFID.ReaderClient
-{
+namespace CanteenRFID.ReaderClient;
+
 public class Program
 {
     public static async Task Main(string[] args)
+    {
+        using var host = Host.CreateDefaultBuilder(args)
+            .UseWindowsService()
+            .ConfigureServices(services =>
+            {
+                services.AddHostedService<ReaderClientService>();
+            })
+            .Build();
+
+        await host.RunAsync();
+    }
+}
+
+public sealed class ReaderClientService : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         Console.WriteLine("CanteenRFID Reader Client gestartet (Keyboard Wedge)");
         var configPath = Path.Combine(AppContext.BaseDirectory, "readerclientsettings.json");
@@ -31,11 +49,10 @@ public class Program
         var queue = new StampQueue(queueFile);
         var sender = new StampSender(httpClient);
         var flushLock = new SemaphoreSlim(1, 1);
-        var flushCts = new CancellationTokenSource();
 
         async Task FlushQueueAsync()
         {
-            if (!await flushLock.WaitAsync(0))
+            if (!await flushLock.WaitAsync(0, stoppingToken))
             {
                 return;
             }
@@ -51,31 +68,8 @@ public class Program
         }
 
         var pingInterval = Math.Max(5, settings.PingIntervalSeconds);
-        var pingCts = new CancellationTokenSource();
-        var pingTask = Task.Run(async () =>
-        {
-            var timer = new PeriodicTimer(TimeSpan.FromSeconds(pingInterval));
-            while (await timer.WaitForNextTickAsync(pingCts.Token))
-            {
-                var pinged = await sender.TryPingAsync(settings.ReaderId);
-                if (pinged)
-                {
-                    await FlushQueueAsync();
-                }
-            }
-        }, pingCts.Token);
-
-        var flushTask = Task.Run(async () =>
-        {
-            var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
-            while (await timer.WaitForNextTickAsync(flushCts.Token))
-            {
-                if (File.Exists(queueFile) && new FileInfo(queueFile).Length > 0)
-                {
-                    await FlushQueueAsync();
-                }
-            }
-        }, flushCts.Token);
+        using var pingTimer = new PeriodicTimer(TimeSpan.FromSeconds(pingInterval));
+        using var flushTimer = new PeriodicTimer(TimeSpan.FromSeconds(10));
 
         await FlushQueueAsync();
 
@@ -84,46 +78,56 @@ public class Program
             ? new GlobalKeyboardSource(settings.Terminator)
             : new KeyboardWedgeSource(settings.Terminator);
 
-        await foreach (var uid in uidSource.ReadAsync())
+        var readTask = Task.Run(async () =>
         {
-            if (string.IsNullOrWhiteSpace(uid)) continue;
-            var stamp = new StampRequest
+            await foreach (var uid in uidSource.ReadAsync().WithCancellation(stoppingToken))
             {
-                Uid = uid.Trim(),
-                ReaderId = settings.ReaderId,
-                TimestampUtc = DateTime.UtcNow,
-                Meta = new Dictionary<string, string> { { "source", "keyboardWedge" } }
-            };
+                if (string.IsNullOrWhiteSpace(uid)) continue;
+                var stamp = new StampRequest
+                {
+                    Uid = uid.Trim(),
+                    ReaderId = settings.ReaderId,
+                    TimestampUtc = DateTime.UtcNow,
+                    Meta = new Dictionary<string, string> { { "source", "keyboardWedge" } }
+                };
 
-            var sent = await sender.TrySendAsync(stamp);
-            if (!sent)
-            {
-                await queue.EnqueueAsync(stamp);
-                Console.WriteLine("Server offline, in Queue abgelegt.");
+                var sent = await sender.TrySendAsync(stamp);
+                if (!sent)
+                {
+                    await queue.EnqueueAsync(stamp);
+                    Console.WriteLine("Server offline, in Queue abgelegt.");
+                }
+                else
+                {
+                    await FlushQueueAsync();
+                }
             }
-            else
+        }, stoppingToken);
+
+        var pingTask = Task.Run(async () =>
+        {
+            while (await pingTimer.WaitForNextTickAsync(stoppingToken))
             {
-                await FlushQueueAsync();
+                var pinged = await sender.TryPingAsync(settings.ReaderId);
+                if (pinged)
+                {
+                    await FlushQueueAsync();
+                }
             }
-        }
+        }, stoppingToken);
 
-        pingCts.Cancel();
-        flushCts.Cancel();
-        try
+        var flushTask = Task.Run(async () =>
         {
-            await pingTask;
-        }
-        catch (TaskCanceledException)
-        {
-        }
+            while (await flushTimer.WaitForNextTickAsync(stoppingToken))
+            {
+                if (File.Exists(queueFile) && new FileInfo(queueFile).Length > 0)
+                {
+                    await FlushQueueAsync();
+                }
+            }
+        }, stoppingToken);
 
-        try
-        {
-            await flushTask;
-        }
-        catch (TaskCanceledException)
-        {
-        }
+        await Task.WhenAll(readTask, pingTask, flushTask);
     }
 }
 
@@ -217,7 +221,6 @@ public sealed class GlobalKeyboardSource : IUidSource, IDisposable
         {
             UnhookWindowsHookEx(_hookId);
         }
-        return false;
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -331,20 +334,7 @@ public class StampSender
 
     public async Task<bool> TrySendAsync(StampRequest request)
     {
-        _filePath = filePath;
-    }
-
-    public async Task EnqueueAsync(StampRequest request)
-    {
-        await File.AppendAllTextAsync(_filePath, JsonSerializer.Serialize(request, _options) + "\n");
-    }
-
-    public async Task FlushAsync(Func<StampRequest, Task<bool>> sender)
-    {
-        if (!File.Exists(_filePath)) return;
-        var lines = await File.ReadAllLinesAsync(_filePath);
-        var remaining = new List<string>();
-        foreach (var line in lines)
+        try
         {
             var response = await _client.PostAsJsonAsync("/api/v1/stamps", request);
             if (response.IsSuccessStatusCode)
@@ -437,12 +427,6 @@ public record StampRequest
     public string ReaderId { get; init; } = string.Empty;
     public DateTime? TimestampUtc { get; init; }
     public Dictionary<string, string>? Meta { get; init; }
-}
-
-public record ReaderPingRequest(string ReaderId);
-}
-
-public record ReaderPingRequest(string ReaderId);
 }
 
 public record ReaderPingRequest(string ReaderId);
