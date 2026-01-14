@@ -74,7 +74,12 @@ public sealed class ReaderClientService : BackgroundService
         await FlushQueueAsync();
 
         Console.WriteLine("Bereit. UID einscannen und mit ENTER bestätigen (Keyboard-Wedge-Modus).");
-        IUidSource uidSource = settings.UseGlobalKeyboardHook && OperatingSystem.IsWindows()
+        var canUseGlobalHook = settings.UseGlobalKeyboardHook && OperatingSystem.IsWindows();
+        if (settings.UseGlobalKeyboardHook && !OperatingSystem.IsWindows())
+        {
+            Console.WriteLine("Globaler Tastatur-Hook ist nur unter Windows verfügbar. Fallback auf STDIN.");
+        }
+        IUidSource uidSource = canUseGlobalHook
             ? new GlobalKeyboardSource(settings.Terminator)
             : new KeyboardWedgeSource(settings.Terminator);
 
@@ -418,7 +423,7 @@ public record ReaderClientSettings
     public string ReaderId { get; init; } = "READER-01";
     public string Terminator { get; init; } = "";
     public int PingIntervalSeconds { get; init; } = 60;
-    public bool UseGlobalKeyboardHook { get; init; } = false;
+    public bool UseGlobalKeyboardHook { get; init; } = true;
 }
 
 public record StampRequest
