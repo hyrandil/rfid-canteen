@@ -1,4 +1,7 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -77,7 +80,9 @@ public class Program
         await FlushQueueAsync();
 
         Console.WriteLine("Bereit. UID einscannen und mit ENTER bestätigen (Keyboard-Wedge-Modus).");
-        IUidSource uidSource = new KeyboardWedgeSource(settings.Terminator);
+        IUidSource uidSource = settings.UseGlobalKeyboardHook && OperatingSystem.IsWindows()
+            ? new GlobalKeyboardSource(settings.Terminator)
+            : new KeyboardWedgeSource(settings.Terminator);
 
         await foreach (var uid in uidSource.ReadAsync())
         {
@@ -158,6 +163,163 @@ public class KeyboardWedgeSource : IUidSource
     }
 }
 
+public sealed class GlobalKeyboardSource : IUidSource, IDisposable
+{
+    private const int WhKeyboardLl = 13;
+    private const int WmKeydown = 0x0100;
+    private const int WmSysKeydown = 0x0104;
+
+    private readonly string _terminator;
+    private readonly StringBuilder _buffer = new();
+    private readonly BlockingCollection<string> _queue = new();
+    private readonly LowLevelKeyboardProc _proc;
+    private readonly Thread _hookThread;
+    private IntPtr _hookId = IntPtr.Zero;
+
+    public GlobalKeyboardSource(string terminator)
+    {
+        _terminator = string.IsNullOrEmpty(terminator) ? "\r" : terminator;
+        _proc = HookCallback;
+        _hookThread = new Thread(RunHookLoop)
+        {
+            IsBackground = true
+        };
+        _hookThread.Start();
+    }
+
+    public async IAsyncEnumerable<string> ReadAsync()
+    {
+        while (true)
+        {
+            string item;
+            try
+            {
+                item = _queue.Take();
+            }
+            catch (InvalidOperationException)
+            {
+                yield break;
+            }
+            yield return item;
+            await Task.Yield();
+        }
+    }
+
+    private void RunHookLoop()
+    {
+        _hookId = SetWindowsHookEx(WhKeyboardLl, _proc, IntPtr.Zero, 0);
+        while (GetMessage(out var msg, IntPtr.Zero, 0, 0))
+        {
+            TranslateMessage(ref msg);
+            DispatchMessage(ref msg);
+        }
+        if (_hookId != IntPtr.Zero)
+        {
+            UnhookWindowsHookEx(_hookId);
+        }
+        return false;
+    }
+
+    private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && (wParam == (IntPtr)WmKeydown || wParam == (IntPtr)WmSysKeydown))
+        {
+            var vkCode = Marshal.ReadInt32(lParam);
+            var ch = VkToChar(vkCode);
+            if (ch != null)
+            {
+                _buffer.Append(ch);
+                if (_buffer.ToString().EndsWith(_terminator, StringComparison.Ordinal))
+                {
+                    var value = _buffer.ToString();
+                    var trimmed = value[..^_terminator.Length];
+                    _buffer.Clear();
+                    if (!string.IsNullOrWhiteSpace(trimmed))
+                    {
+                        _queue.Add(trimmed);
+                    }
+                }
+            }
+        }
+        return CallNextHookEx(_hookId, nCode, wParam, lParam);
+    }
+
+    private static string? VkToChar(int vkCode)
+    {
+        var keyboardState = new byte[256];
+        if (!GetKeyboardState(keyboardState))
+        {
+            return null;
+        }
+
+        var scanCode = MapVirtualKey((uint)vkCode, 0);
+        var buffer = new StringBuilder(2);
+        var result = ToUnicode((uint)vkCode, scanCode, keyboardState, buffer, buffer.Capacity, 0);
+        if (result > 0)
+        {
+            return buffer.ToString();
+        }
+        return null;
+    }
+
+    public void Dispose()
+    {
+        _queue.CompleteAdding();
+        PostThreadMessage(GetCurrentThreadId(), 0x0012, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll")]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetMessage(out Msg lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [DllImport("user32.dll")]
+    private static extern bool TranslateMessage(ref Msg lpMsg);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr DispatchMessage(ref Msg lpMsg);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetKeyboardState(byte[] lpKeyState);
+
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
+
+    [DllImport("user32.dll")]
+    private static extern int ToUnicode(uint wVirtKey, uint wScanCode, byte[] lpKeyState, StringBuilder pwszBuff, int cchBuff, uint wFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool PostThreadMessage(uint idThread, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    private struct Msg
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public Point pt;
+    }
+
+    private struct Point
+    {
+        public int x;
+        public int y;
+    }
+}
+
 public class StampSender
 {
     private readonly HttpClient _client;
@@ -169,7 +331,20 @@ public class StampSender
 
     public async Task<bool> TrySendAsync(StampRequest request)
     {
-        try
+        _filePath = filePath;
+    }
+
+    public async Task EnqueueAsync(StampRequest request)
+    {
+        await File.AppendAllTextAsync(_filePath, JsonSerializer.Serialize(request, _options) + "\n");
+    }
+
+    public async Task FlushAsync(Func<StampRequest, Task<bool>> sender)
+    {
+        if (!File.Exists(_filePath)) return;
+        var lines = await File.ReadAllLinesAsync(_filePath);
+        var remaining = new List<string>();
+        foreach (var line in lines)
         {
             var response = await _client.PostAsJsonAsync("/api/v1/stamps", request);
             if (response.IsSuccessStatusCode)
@@ -253,6 +428,7 @@ public record ReaderClientSettings
     public string ReaderId { get; init; } = "READER-01";
     public string Terminator { get; init; } = "";
     public int PingIntervalSeconds { get; init; } = 60;
+    public bool UseGlobalKeyboardHook { get; init; } = false;
 }
 
 public record StampRequest
@@ -261,6 +437,9 @@ public record StampRequest
     public string ReaderId { get; init; } = string.Empty;
     public DateTime? TimestampUtc { get; init; }
     public Dictionary<string, string>? Meta { get; init; }
+}
+
+public record ReaderPingRequest(string ReaderId);
 }
 
 public record ReaderPingRequest(string ReaderId);
