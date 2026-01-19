@@ -100,6 +100,22 @@ await using (var scope = app.Services.CreateAsyncScope())
     {
         // Column already exists.
     }
+
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS MealCosts (
+                Id TEXT PRIMARY KEY,
+                MealType TEXT NOT NULL,
+                Cost REAL NOT NULL
+            );
+            """);
+        await db.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX IF NOT EXISTS IX_MealCosts_MealType ON MealCosts (MealType);");
+    }
+    catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1)
+    {
+        // Table already exists.
+    }
     await DataSeeder.SeedAsync(db);
     var store = scope.ServiceProvider.GetRequiredService<AdminCredentialStore>();
     var existed = store.SecretExists;

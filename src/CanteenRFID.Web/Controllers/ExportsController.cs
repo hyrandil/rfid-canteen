@@ -29,6 +29,7 @@ public class ExportsController : Controller
     public async Task<IActionResult> Excel(DateTime from, DateTime to, MealType? mealType, Guid? userId)
     {
         var stamps = await BuildQuery(from, to, mealType, userId).Include(s => s.User).ToListAsync();
+        var costs = await LoadCostsAsync();
 
         using var workbook = new XLWorkbook();
         var summarySheet = workbook.Worksheets.Add("Summary");
@@ -39,7 +40,13 @@ public class ExportsController : Controller
         summarySheet.Cell(1, 5).Value = "Dinner";
         summarySheet.Cell(1, 6).Value = "Snack";
         summarySheet.Cell(1, 7).Value = "Unknown";
-        summarySheet.Cell(1, 8).Value = "Total";
+        summarySheet.Cell(1, 8).Value = "Breakfast Cost";
+        summarySheet.Cell(1, 9).Value = "Lunch Cost";
+        summarySheet.Cell(1, 10).Value = "Dinner Cost";
+        summarySheet.Cell(1, 11).Value = "Breakfast Total";
+        summarySheet.Cell(1, 12).Value = "Lunch Total";
+        summarySheet.Cell(1, 13).Value = "Dinner Total";
+        summarySheet.Cell(1, 14).Value = "Total";
 
         var grouped = stamps.GroupBy(s => s.UserPersonnelNo ?? s.User?.PersonnelNo ?? "Unbekannt").ToList();
         var row = 2;
@@ -47,12 +54,24 @@ public class ExportsController : Controller
         {
             summarySheet.Cell(row, 1).Value = g.Key;
             summarySheet.Cell(row, 2).Value = g.First().UserDisplayName ?? g.First().User?.FullName ?? "Unbekannt";
-            summarySheet.Cell(row, 3).Value = g.Count(x => x.MealType == MealType.Breakfast);
-            summarySheet.Cell(row, 4).Value = g.Count(x => x.MealType == MealType.Lunch);
-            summarySheet.Cell(row, 5).Value = g.Count(x => x.MealType == MealType.Dinner);
+            var breakfastCount = g.Count(x => x.MealType == MealType.Breakfast);
+            var lunchCount = g.Count(x => x.MealType == MealType.Lunch);
+            var dinnerCount = g.Count(x => x.MealType == MealType.Dinner);
+            summarySheet.Cell(row, 3).Value = breakfastCount;
+            summarySheet.Cell(row, 4).Value = lunchCount;
+            summarySheet.Cell(row, 5).Value = dinnerCount;
             summarySheet.Cell(row, 6).Value = g.Count(x => x.MealType == MealType.Snack);
             summarySheet.Cell(row, 7).Value = g.Count(x => x.MealType == MealType.Unknown);
-            summarySheet.Cell(row, 8).Value = g.Count();
+            summarySheet.Cell(row, 8).Value = costs.Breakfast;
+            summarySheet.Cell(row, 9).Value = costs.Lunch;
+            summarySheet.Cell(row, 10).Value = costs.Dinner;
+            var breakfastTotal = breakfastCount * costs.Breakfast;
+            var lunchTotal = lunchCount * costs.Lunch;
+            var dinnerTotal = dinnerCount * costs.Dinner;
+            summarySheet.Cell(row, 11).Value = breakfastTotal;
+            summarySheet.Cell(row, 12).Value = lunchTotal;
+            summarySheet.Cell(row, 13).Value = dinnerTotal;
+            summarySheet.Cell(row, 14).Value = breakfastTotal + lunchTotal + dinnerTotal;
             row++;
         }
 
@@ -63,6 +82,7 @@ public class ExportsController : Controller
         rawSheet.Cell(1, 4).Value = "User";
         rawSheet.Cell(1, 5).Value = "Reader";
         rawSheet.Cell(1, 6).Value = "Meal Type";
+        rawSheet.Cell(1, 7).Value = "Meal Cost";
 
         var rawRow = 2;
         foreach (var s in stamps.OrderBy(s => s.TimestampUtc))
@@ -73,6 +93,7 @@ public class ExportsController : Controller
             rawSheet.Cell(rawRow, 4).Value = s.UserDisplayName ?? s.User?.FullName ?? "Unbekannt";
             rawSheet.Cell(rawRow, 5).Value = s.ReaderId;
             rawSheet.Cell(rawRow, 6).Value = s.MealType.ToString();
+            rawSheet.Cell(rawRow, 7).Value = costs.GetCost(s.MealType);
             rawRow++;
         }
 
@@ -209,5 +230,28 @@ public class ExportsController : Controller
             query = query.Where(s => s.UserId == userId);
         }
         return query;
+    }
+
+    private async Task<MealCostSnapshot> LoadCostsAsync()
+    {
+        var costs = await _db.MealCosts.AsNoTracking().ToListAsync();
+        var breakfast = costs.FirstOrDefault(c => c.MealType == MealType.Breakfast)?.Cost ?? 0m;
+        var lunch = costs.FirstOrDefault(c => c.MealType == MealType.Lunch)?.Cost ?? 0m;
+        var dinner = costs.FirstOrDefault(c => c.MealType == MealType.Dinner)?.Cost ?? 0m;
+        return new MealCostSnapshot(breakfast, lunch, dinner);
+    }
+
+    private readonly record struct MealCostSnapshot(decimal Breakfast, decimal Lunch, decimal Dinner)
+    {
+        public decimal GetCost(MealType mealType)
+        {
+            return mealType switch
+            {
+                MealType.Breakfast => Breakfast,
+                MealType.Lunch => Lunch,
+                MealType.Dinner => Dinner,
+                _ => 0m
+            };
+        }
     }
 }
