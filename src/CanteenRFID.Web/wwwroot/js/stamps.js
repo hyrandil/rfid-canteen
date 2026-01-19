@@ -33,12 +33,12 @@
             1: 'Frühstück',
             2: 'Mittagessen',
             3: 'Abendessen',
-            4: 'Snack',
+            4: 'Unbekannt',
             'Unknown': 'Unbekannt',
             'Breakfast': 'Frühstück',
             'Lunch': 'Mittagessen',
             'Dinner': 'Abendessen',
-            'Snack': 'Snack'
+            'Snack': 'Unbekannt'
         };
         return map[value] ?? value;
     };

@@ -38,15 +38,13 @@ public class ExportsController : Controller
         summarySheet.Cell(1, 3).Value = "Breakfast";
         summarySheet.Cell(1, 4).Value = "Lunch";
         summarySheet.Cell(1, 5).Value = "Dinner";
-        summarySheet.Cell(1, 6).Value = "Snack";
-        summarySheet.Cell(1, 7).Value = "Unknown";
-        summarySheet.Cell(1, 8).Value = "Breakfast Cost";
-        summarySheet.Cell(1, 9).Value = "Lunch Cost";
-        summarySheet.Cell(1, 10).Value = "Dinner Cost";
-        summarySheet.Cell(1, 11).Value = "Breakfast Total";
-        summarySheet.Cell(1, 12).Value = "Lunch Total";
-        summarySheet.Cell(1, 13).Value = "Dinner Total";
-        summarySheet.Cell(1, 14).Value = "Total";
+        summarySheet.Cell(1, 6).Value = "Breakfast Cost";
+        summarySheet.Cell(1, 7).Value = "Lunch Cost";
+        summarySheet.Cell(1, 8).Value = "Dinner Cost";
+        summarySheet.Cell(1, 9).Value = "Breakfast Total";
+        summarySheet.Cell(1, 10).Value = "Lunch Total";
+        summarySheet.Cell(1, 11).Value = "Dinner Total";
+        summarySheet.Cell(1, 12).Value = "Total";
 
         var grouped = stamps.GroupBy(s => s.UserPersonnelNo ?? s.User?.PersonnelNo ?? "Unbekannt").ToList();
         var row = 2;
@@ -60,18 +58,16 @@ public class ExportsController : Controller
             summarySheet.Cell(row, 3).Value = breakfastCount;
             summarySheet.Cell(row, 4).Value = lunchCount;
             summarySheet.Cell(row, 5).Value = dinnerCount;
-            summarySheet.Cell(row, 6).Value = g.Count(x => x.MealType == MealType.Snack);
-            summarySheet.Cell(row, 7).Value = g.Count(x => x.MealType == MealType.Unknown);
-            summarySheet.Cell(row, 8).Value = costs.Breakfast;
-            summarySheet.Cell(row, 9).Value = costs.Lunch;
-            summarySheet.Cell(row, 10).Value = costs.Dinner;
+            summarySheet.Cell(row, 6).Value = costs.Breakfast;
+            summarySheet.Cell(row, 7).Value = costs.Lunch;
+            summarySheet.Cell(row, 8).Value = costs.Dinner;
             var breakfastTotal = breakfastCount * costs.Breakfast;
             var lunchTotal = lunchCount * costs.Lunch;
             var dinnerTotal = dinnerCount * costs.Dinner;
-            summarySheet.Cell(row, 11).Value = breakfastTotal;
-            summarySheet.Cell(row, 12).Value = lunchTotal;
-            summarySheet.Cell(row, 13).Value = dinnerTotal;
-            summarySheet.Cell(row, 14).Value = breakfastTotal + lunchTotal + dinnerTotal;
+            summarySheet.Cell(row, 9).Value = breakfastTotal;
+            summarySheet.Cell(row, 10).Value = lunchTotal;
+            summarySheet.Cell(row, 11).Value = dinnerTotal;
+            summarySheet.Cell(row, 12).Value = breakfastTotal + lunchTotal + dinnerTotal;
             row++;
         }
 
@@ -116,8 +112,7 @@ public class ExportsController : Controller
             Breakfast = g.Count(x => x.MealType == MealType.Breakfast),
             Lunch = g.Count(x => x.MealType == MealType.Lunch),
             Dinner = g.Count(x => x.MealType == MealType.Dinner),
-            Snack = g.Count(x => x.MealType == MealType.Snack),
-            Unknown = g.Count(x => x.MealType == MealType.Unknown)
+            Total = g.Count(x => x.MealType == MealType.Breakfast || x.MealType == MealType.Lunch || x.MealType == MealType.Dinner)
         }).ToList();
 
         var daily = stamps.GroupBy(s => s.TimestampLocal.Date)
@@ -127,8 +122,7 @@ public class ExportsController : Controller
                 Breakfast = g.Count(x => x.MealType == MealType.Breakfast),
                 Lunch = g.Count(x => x.MealType == MealType.Lunch),
                 Dinner = g.Count(x => x.MealType == MealType.Dinner),
-                Snack = g.Count(x => x.MealType == MealType.Snack),
-                Unknown = g.Count(x => x.MealType == MealType.Unknown)
+                Total = g.Count(x => x.MealType == MealType.Breakfast || x.MealType == MealType.Lunch || x.MealType == MealType.Dinner)
             })
             .OrderBy(g => g.Date)
             .ToList();
@@ -150,8 +144,6 @@ public class ExportsController : Controller
                             columns.RelativeColumn();
                             columns.RelativeColumn();
                             columns.RelativeColumn();
-                            columns.RelativeColumn();
-                            columns.RelativeColumn();
                         });
 
                         table.Header(header =>
@@ -161,8 +153,7 @@ public class ExportsController : Controller
                             header.Cell().Text("Breakfast").Bold();
                             header.Cell().Text("Lunch").Bold();
                             header.Cell().Text("Dinner").Bold();
-                            header.Cell().Text("Snack").Bold();
-                            header.Cell().Text("Unknown").Bold();
+                            header.Cell().Text("Total").Bold();
                         });
 
                         foreach (var row in grouped)
@@ -172,8 +163,7 @@ public class ExportsController : Controller
                             table.Cell().Text(row.Breakfast.ToString());
                             table.Cell().Text(row.Lunch.ToString());
                             table.Cell().Text(row.Dinner.ToString());
-                            table.Cell().Text(row.Snack.ToString());
-                            table.Cell().Text(row.Unknown.ToString());
+                            table.Cell().Text(row.Total.ToString());
                         }
                     });
 
@@ -186,8 +176,6 @@ public class ExportsController : Controller
                             columns.RelativeColumn();
                             columns.RelativeColumn();
                             columns.RelativeColumn();
-                            columns.RelativeColumn();
-                            columns.RelativeColumn();
                         });
 
                         table.Header(header =>
@@ -196,8 +184,7 @@ public class ExportsController : Controller
                             header.Cell().Text("Breakfast").Bold();
                             header.Cell().Text("Lunch").Bold();
                             header.Cell().Text("Dinner").Bold();
-                            header.Cell().Text("Snack").Bold();
-                            header.Cell().Text("Unknown").Bold();
+                            header.Cell().Text("Total").Bold();
                         });
 
                         foreach (var row in daily)
@@ -206,8 +193,7 @@ public class ExportsController : Controller
                             table.Cell().Text(row.Breakfast.ToString());
                             table.Cell().Text(row.Lunch.ToString());
                             table.Cell().Text(row.Dinner.ToString());
-                            table.Cell().Text(row.Snack.ToString());
-                            table.Cell().Text(row.Unknown.ToString());
+                            table.Cell().Text(row.Total.ToString());
                         }
                     });
                 });

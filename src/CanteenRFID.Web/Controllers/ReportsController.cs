@@ -45,9 +45,7 @@ public class ReportsController : Controller
                 Name = g.First().UserDisplayName ?? (g.First().User != null ? g.First().User!.FullName : "Unbekannte UID"),
                 Breakfast = g.Count(x => x.MealType == MealType.Breakfast),
                 Lunch = g.Count(x => x.MealType == MealType.Lunch),
-                Dinner = g.Count(x => x.MealType == MealType.Dinner),
-                Snack = g.Count(x => x.MealType == MealType.Snack),
-                Unknown = g.Count(x => x.MealType == MealType.Unknown)
+                Dinner = g.Count(x => x.MealType == MealType.Dinner)
             }).ToListAsync();
 
         return rows;
@@ -61,6 +59,4 @@ public class ConsumptionRow
     public int Breakfast { get; set; }
     public int Lunch { get; set; }
     public int Dinner { get; set; }
-    public int Snack { get; set; }
-    public int Unknown { get; set; }
 }

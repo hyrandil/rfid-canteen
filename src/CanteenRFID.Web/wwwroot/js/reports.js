@@ -22,8 +22,6 @@
                 <td>${row.breakfast ?? row.Breakfast ?? 0}</td>
                 <td>${row.lunch ?? row.Lunch ?? 0}</td>
                 <td>${row.dinner ?? row.Dinner ?? 0}</td>
-                <td>${row.snack ?? row.Snack ?? 0}</td>
-                <td>${row.unknown ?? row.Unknown ?? 0}</td>
             `;
             tableBody.appendChild(tr);
         });

@@ -22,11 +22,11 @@
 </form>
 <table class="table table-striped" id="consumption-table">
     <thead>
-        <tr><th>Personalnr</th><th>Name</th><th>Frühstück</th><th>Mittag</th><th>Abend</th><th>Snack</th><th>Unbekannt</th></tr>
+        <tr><th>Personalnr</th><th>Name</th><th>Frühstück</th><th>Mittag</th><th>Abend</th></tr>
     </thead>
     <tbody>
     @foreach(var r in Model){
-        <tr><td>@r.PersonnelNo</td><td>@r.Name</td><td>@r.Breakfast</td><td>@r.Lunch</td><td>@r.Dinner</td><td>@r.Snack</td><td>@r.Unknown</td></tr>
+        <tr><td>@r.PersonnelNo</td><td>@r.Name</td><td>@r.Breakfast</td><td>@r.Lunch</td><td>@r.Dinner</td></tr>
     }
     </tbody>
 </table>

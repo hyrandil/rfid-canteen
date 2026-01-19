@@ -22,7 +22,7 @@ public class StampsController : Controller
             .OrderByDescending(s => s.TimestampUtc)
             .Take(50)
             .ToListAsync();
-        ViewBag.MealTypes = Enum.GetValues(typeof(MealType));
+        ViewBag.MealTypes = new[] { MealType.Breakfast, MealType.Lunch, MealType.Dinner };
         return View(initial);
     }
 }
