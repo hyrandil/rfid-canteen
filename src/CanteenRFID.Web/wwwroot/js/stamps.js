@@ -108,19 +108,22 @@
     });
 
     tableBody.addEventListener('click', async (e) => {
-        const target = e.target;
         if (!canDelete) return;
-        if (target instanceof HTMLElement && target.classList.contains('btn-delete')) {
-            const id = target.dataset.id;
-            if (!id) return;
-            if (!confirm('Stempelung wirklich löschen?')) return;
-            const resp = await fetch(`/api/v1/stamps/${id}`, { method: 'DELETE' });
-            if (resp.ok) {
-                load();
-            } else {
-                const text = await resp.text();
-                showAlert(text || 'Löschen fehlgeschlagen. Prüfe Berechtigungen.');
-            }
+        const target = e.target;
+        if (!(target instanceof Element)) return;
+        const deleteButton = target.closest('.btn-delete');
+        if (!deleteButton) return;
+
+        const id = deleteButton.getAttribute('data-id');
+        if (!id) return;
+        if (!confirm('Stempelung wirklich löschen?')) return;
+
+        const resp = await fetch(`/api/v1/stamps/${id}`, { method: 'DELETE' });
+        if (resp.ok) {
+            load();
+        } else {
+            const text = await resp.text();
+            showAlert(text || 'Löschen fehlgeschlagen. Prüfe Berechtigungen.');
         }
     });
 
