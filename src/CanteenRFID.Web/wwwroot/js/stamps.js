@@ -5,6 +5,16 @@
     const clearBtn = document.getElementById('btn-clear');
     const canDelete = document.getElementById('stamps-table')?.dataset.canDelete === 'true';
     const alertBox = document.getElementById('stamps-alert');
+    const deleteModalElement = document.getElementById('stamps-delete-modal');
+    const deleteConfirmBtn = document.getElementById('stamps-delete-confirm');
+    const deleteCancelBtn = document.getElementById('stamps-delete-cancel');
+    const deleteCancelXBtn = document.getElementById('stamps-delete-cancel-x');
+
+    const deleteModal = deleteModalElement && window.bootstrap?.Modal
+        ? new window.bootstrap.Modal(deleteModalElement, { backdrop: 'static' })
+        : null;
+
+    let pendingDeleteId = null;
 
     const showAlert = (message, type = 'danger') => {
         if (!alertBox) return;
@@ -107,16 +117,10 @@
         load();
     });
 
-    tableBody.addEventListener('click', async (e) => {
-        if (!canDelete) return;
-        const target = e.target;
-        if (!(target instanceof Element)) return;
-        const deleteButton = target.closest('.btn-delete');
-        if (!deleteButton) return;
-
-        const id = deleteButton.getAttribute('data-id');
-        if (!id) return;
-        if (!confirm('Stempelung wirklich löschen?')) return;
+    const performDelete = async () => {
+        if (!pendingDeleteId) return;
+        const id = pendingDeleteId;
+        pendingDeleteId = null;
 
         const resp = await fetch(`/api/v1/stamps/${id}`, { method: 'DELETE' });
         if (resp.ok) {
@@ -125,6 +129,50 @@
             const text = await resp.text();
             showAlert(text || 'Löschen fehlgeschlagen. Prüfe Berechtigungen.');
         }
+    };
+
+    const closeDeleteModal = () => {
+        pendingDeleteId = null;
+        if (deleteModal) {
+            deleteModal.hide();
+        } else if (deleteModalElement) {
+            deleteModalElement.classList.remove('show');
+            deleteModalElement.style.display = 'none';
+            deleteModalElement.setAttribute('aria-hidden', 'true');
+        }
+    };
+
+    const openDeleteModal = (id) => {
+        pendingDeleteId = id;
+        if (deleteModal) {
+            deleteModal.show();
+        } else if (deleteModalElement) {
+            deleteModalElement.classList.add('show');
+            deleteModalElement.style.display = 'block';
+            deleteModalElement.setAttribute('aria-hidden', 'false');
+        }
+    };
+
+    deleteConfirmBtn?.addEventListener('click', async () => {
+        const idBeforeDelete = pendingDeleteId;
+        closeDeleteModal();
+        pendingDeleteId = idBeforeDelete;
+        await performDelete();
+    });
+
+    deleteCancelBtn?.addEventListener('click', closeDeleteModal);
+    deleteCancelXBtn?.addEventListener('click', closeDeleteModal);
+
+    tableBody.addEventListener('click', (e) => {
+        if (!canDelete) return;
+        const target = e.target;
+        if (!(target instanceof Element)) return;
+        const deleteButton = target.closest('.btn-delete');
+        if (!deleteButton) return;
+
+        const id = deleteButton.getAttribute('data-id');
+        if (!id) return;
+        openDeleteModal(id);
     });
 
     load();
