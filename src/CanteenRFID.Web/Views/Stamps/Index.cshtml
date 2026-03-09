@@ -63,7 +63,7 @@
     <table class="table table-striped table-hover align-middle" id="stamps-table" data-can-delete="@canDelete.ToString().ToLower()">
         <thead class="table-light">
             <tr>
-                <th><input type="checkbox" id="select-all-stamps" /></th>
+                <th>@if (canDelete) { <input type="checkbox" id="select-all-stamps" /> }</th>
                 <th>Lokale Zeit</th>
                 <th>UID</th>
                 <th>Person</th>
@@ -91,6 +91,13 @@
                     @if (s.User == null)
                     {
                         <a class="btn btn-sm btn-outline-primary" href="/Users?search=@s.UidRaw">Benutzer verknüpfen</a>
+                    }
+                    @if (canDelete)
+                    {
+                        <form method="post" asp-action="Delete" asp-route-id="@s.Id" class="d-inline" onsubmit="return confirm('Löschen?');">
+                            @Html.AntiForgeryToken()
+                            <button class="btn btn-sm btn-danger" type="submit">Löschen</button>
+                        </form>
                     }
                 </td>
             </tr>
