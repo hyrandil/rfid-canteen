@@ -204,22 +204,60 @@ api.MapPost("/stamps", async ([FromBody] StampRequest request, HttpContext conte
     return Results.Created($"/api/v1/stamps/{result.Stamp.Id}", new { created = true, stamp = result.Stamp, statusMessage = result.StatusMessage });
 }).WithTags("Stamps");
 
-api.MapGet("/stamps", async ([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] Guid? userId, [FromQuery] string? uid, [FromQuery] string? readerId, [FromQuery] MealType? mealType, [FromQuery] string? search, ApplicationDbContext db) =>
+api.MapGet("/stamps", async (
+    [FromQuery] DateTime? from,
+    [FromQuery] DateTime? to,
+    [FromQuery] Guid? userId,
+    [FromQuery] string? uid,
+    [FromQuery] string? readerId,
+    [FromQuery] MealType? mealType,
+    [FromQuery] string? name,
+    [FromQuery] string? personnelNo,
+    [FromQuery] int page,
+    [FromQuery] int pageSize,
+    ApplicationDbContext db) =>
 {
+    page = page <= 0 ? 1 : page;
+    pageSize = pageSize <= 0 ? 25 : Math.Min(pageSize, 100);
+
     var query = db.Stamps.Include(s => s.User).AsQueryable();
-    if (from.HasValue) query = query.Where(s => s.TimestampUtc >= from);
-    if (to.HasValue) query = query.Where(s => s.TimestampUtc <= to);
+    if (from.HasValue) query = query.Where(s => s.TimestampLocal >= from.Value);
+    if (to.HasValue) query = query.Where(s => s.TimestampLocal <= to.Value);
     if (userId.HasValue) query = query.Where(s => s.UserId == userId);
-    if (!string.IsNullOrWhiteSpace(uid)) query = query.Where(s => s.UidRaw == uid);
-    if (!string.IsNullOrWhiteSpace(readerId)) query = query.Where(s => s.ReaderId == readerId);
+    if (!string.IsNullOrWhiteSpace(uid)) query = query.Where(s => s.UidRaw.Contains(uid));
+    if (!string.IsNullOrWhiteSpace(readerId)) query = query.Where(s => s.ReaderId.Contains(readerId));
     if (mealType.HasValue) query = query.Where(s => s.MealType == mealType);
-    if (!string.IsNullOrWhiteSpace(search))
+    if (!string.IsNullOrWhiteSpace(name))
     {
-        query = query.Where(s => s.UidRaw.Contains(search) || s.ReaderId.Contains(search) || (s.User != null && (s.User.FirstName + " " + s.User.LastName).Contains(search)));
+        var n = name.Trim();
+        query = query.Where(s =>
+            (s.UserDisplayName != null && s.UserDisplayName.Contains(n)) ||
+            (s.User != null && ((s.User.FirstName + " " + s.User.LastName).Contains(n) || (s.User.LastName + " " + s.User.FirstName).Contains(n))));
     }
 
-    var items = await query.OrderByDescending(s => s.TimestampUtc).Take(500).ToListAsync();
-    return Results.Ok(items);
+    if (!string.IsNullOrWhiteSpace(personnelNo))
+    {
+        var pNo = personnelNo.Trim();
+        query = query.Where(s =>
+            (s.UserPersonnelNo != null && s.UserPersonnelNo.Contains(pNo)) ||
+            (s.User != null && s.User.PersonnelNo.Contains(pNo)));
+    }
+
+    var total = await query.CountAsync();
+    var items = await query
+        .OrderByDescending(s => s.TimestampUtc)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .ToListAsync();
+
+    return Results.Ok(new
+    {
+        items,
+        page,
+        pageSize,
+        total,
+        totalPages = (int)Math.Ceiling(total / (double)pageSize)
+    });
 }).RequireAuthorization().WithTags("Stamps");
 
 api.MapDelete("/stamps/{id:guid}", async (Guid id, ApplicationDbContext db) =>
