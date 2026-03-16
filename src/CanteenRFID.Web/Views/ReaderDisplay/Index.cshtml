@@ -138,6 +138,11 @@
             opacity: 1;
             transform: scale(1);
         }
+        .stamp-card.error {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: #f8fafc;
+            box-shadow: 0 45px 90px rgba(239, 68, 68, 0.35);
+        }
         .meal-label {
             font-size: clamp(3.2rem, 8vw, 6.2rem);
             font-weight: 800;
@@ -212,7 +217,7 @@
             <div id="stampCard" class="stamp-card hidden">
                 <div id="mealLabel" class="meal-label">Frühstück</div>
                 <div id="userName" class="user-name"></div>
-                <div class="checkmark" aria-hidden="true">✔</div>
+                <div id="statusIcon" class="checkmark" aria-hidden="true">✔</div>
                 <div class="stamp-subtitle">Stempelung erfasst</div>
             </div>
             <div id="offlineBanner" class="offline-banner hidden">
@@ -231,6 +236,7 @@
         const offlineBanner = document.getElementById('offlineBanner');
         const mealLabel = document.getElementById('mealLabel');
         const userName = document.getElementById('userName');
+        const statusIcon = document.getElementById('statusIcon');
         const setupForm = document.getElementById('setupForm');
         const readerSelect = document.getElementById('readerSelect');
         const hintText = document.querySelector('.status-hint');
@@ -243,15 +249,21 @@
             if (hideTimer) {
                 clearTimeout(hideTimer);
             }
+            const statusMessage = stamp.statusMessage || 'Buchung erfasst';
+            const isError = statusMessage.toLowerCase().includes('nicht gefunden');
+
             mealLabel.textContent = stamp.mealLabel || stamp.mealType || 'Unbekannt';
             userName.textContent = stamp.userName || '';
+            statusIcon.textContent = isError ? '✖' : '✔';
+            stampCard.classList.toggle('error', isError);
             stampCard.classList.remove('hidden');
             stampCard.classList.add('visible');
-            hintText.textContent = stamp.statusMessage || 'Buchung erfasst';
+            hintText.textContent = statusMessage;
 
             hideTimer = setTimeout(() => {
                 stampCard.classList.remove('visible');
                 stampCard.classList.add('hidden');
+                stampCard.classList.remove('error');
                 hintText.textContent = 'Bitte RFID vorhalten';
             }, 5000);
         };

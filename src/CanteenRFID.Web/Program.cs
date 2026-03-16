@@ -655,7 +655,27 @@ public class StampService
         var mealType = engine.ResolveMealType(local);
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Uid == uid);
         var reader = await _db.Readers.FirstOrDefaultAsync(r => r.ReaderId == readerId);
-        if (user != null && (mealType == MealType.Breakfast || mealType == MealType.Lunch || mealType == MealType.Dinner))
+
+        if (user == null)
+        {
+            if (reader != null)
+            {
+                reader.LastPingUtc = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+
+            _feedbackStore.Set(readerId, new ReaderDisplayFeedback(
+                Guid.NewGuid(),
+                utc,
+                mealType.ToString(),
+                MealLabelHelper.GetMealLabel(mealType),
+                null,
+                "Benutzer nicht gefunden - bitte erneut versuchen"));
+
+            return new StampAddResult(false, null, "Benutzer nicht gefunden - bitte erneut versuchen");
+        }
+
+        if (mealType == MealType.Breakfast || mealType == MealType.Lunch || mealType == MealType.Dinner)
         {
             var alreadyBooked = await _db.Stamps.AnyAsync(s =>
                 s.UserId == user.Id &&
